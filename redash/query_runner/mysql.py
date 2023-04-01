@@ -17,6 +17,8 @@ from redash.settings import parse_boolean
 
 try:
     import MySQLdb
+    from MySQLdb.constants import FIELD_TYPE, FLAG
+    from MySQLdb.converters import conversions
 
     enabled = True
 except ImportError:
@@ -41,6 +43,22 @@ types_map = {
     253: TYPE_STRING,
     254: TYPE_STRING,
 }
+
+# need mysqlclient>=1.4.0 to support non-ASCII field name with non-UTF-8 connection encoding
+# the custom encoding patch is tested under mysqlclient==2.1.1, memsql==3.2.0
+# (also need to update memsql as memsql require _mysql)
+
+
+def _column_decoder(input, encode, decode):
+    if decode != "" and isinstance(input, str):
+        return input.encode(encode, "ignore").decode(decode, "ignore")
+    return input
+
+
+def _sql_encoder(input, encode, decode):
+    if isinstance(input, str):
+        return input.encode(encode, "ignore").decode(decode, "ignore")
+    return input
 
 
 class Result:
@@ -67,6 +85,7 @@ class Mysql(BaseSQLQueryRunner):
                 "charset": {"type": "string", "default": "utf8mb4"},
                 "use_unicode": {"type": "boolean", "default": True},
                 "autocommit": {"type": "boolean", "default": False},
+                "encoding": {"type": "string", "default": ""},
             },
             "order": [
                 "host",
@@ -141,6 +160,27 @@ class Mysql(BaseSQLQueryRunner):
 
         if ssl_options:
             params["ssl"] = ssl_options
+
+        # string encoding for the UI display, like Navicat
+        encoding_for_ui = self.configuration.get("encoding", "")
+        if encoding_for_ui != "":
+            _conv = conversions.copy()
+
+            def _string_decoder(s):
+                return s.decode(encoding_for_ui, "ignore")
+
+            for t in (
+                FIELD_TYPE.STRING,
+                FIELD_TYPE.VAR_STRING,
+                FIELD_TYPE.VARCHAR,
+                FIELD_TYPE.TINY_BLOB,
+                FIELD_TYPE.MEDIUM_BLOB,
+                FIELD_TYPE.LONG_BLOB,
+                FIELD_TYPE.BLOB,
+            ):
+                _conv[t] = [(FLAG.BINARY, bytes), (None, _string_decoder)]
+
+            params["conv"] = _conv
 
         connection = MySQLdb.connect(**params)
 
@@ -230,6 +270,12 @@ class Mysql(BaseSQLQueryRunner):
         try:
             cursor = connection.cursor()
             logger.debug("MySQL running query: %s", query)
+
+            # encoding the SQL
+            encoding_for_ui = self.configuration.get("encoding", "")
+            if encoding_for_ui != "":
+                query = _sql_encoder(query, encoding_for_ui, connection.encoding)
+
             cursor.execute(query)
 
             data = cursor.fetchall()
@@ -242,7 +288,12 @@ class Mysql(BaseSQLQueryRunner):
 
             # TODO - very similar to pg.py
             if desc is not None:
-                columns = self.fetch_columns([(i[0], types_map.get(i[1], None)) for i in desc])
+                columns = self.fetch_columns(
+                    [
+                        (_column_decoder(i[0], connection.encoding, encoding_for_ui), types_map.get(i[1], None))
+                        for i in desc
+                    ]
+                )
                 rows = [dict(zip((column["name"] for column in columns), row)) for row in data]
 
                 data = {"columns": columns, "rows": rows}
