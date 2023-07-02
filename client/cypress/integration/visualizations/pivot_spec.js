@@ -101,7 +101,9 @@ describe("Pivot", () => {
 
       cy.wait(2000);  // eslint-disable-line cypress/no-unnecessary-waiting
       cy.getByTestId("SaveButton").click();
-      cy.getByTestId("ExecuteButton").click();
+      cy.getByTestId("ExecuteButton")
+        .should("be.enabled")
+        .click();
 
       // assert number of rows is 12
       cy.getByTestId("PivotTableVisualization").contains(".pvtGrandTotal", "12");
