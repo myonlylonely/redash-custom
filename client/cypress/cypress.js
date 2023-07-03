@@ -66,7 +66,7 @@ function runCypressCI() {
     GITHUB_REPOSITORY,
   } = process.env;
 
-  if (GITHUB_REPOSITORY === "getredash/redash") {
+  if (GITHUB_REPOSITORY === "getredash/redash" || GITHUB_REPOSITORY === "myonlylonely/redash-custom") {
     if (PERCY_TOKEN_ENCODED) {
       process.env.PERCY_TOKEN = atob(`${PERCY_TOKEN_ENCODED}`);
     }
