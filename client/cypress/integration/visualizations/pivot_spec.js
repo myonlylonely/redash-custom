@@ -99,7 +99,10 @@ describe("Pivot", () => {
         .focus()
         .type(" UNION ALL {enter}SELECT 'c' AS stage1, 'c5' AS stage2, 55 AS value");
 
-      cy.wait(2000);  // eslint-disable-line cypress/no-unnecessary-waiting
+      // wait for the query text change to propagate (it's debounced in QuerySource.jsx)
+      // eslint-disable-next-line cypress/no-unnecessary-waiting
+      cy.wait(200);
+
       cy.getByTestId("SaveButton").click();
       cy.getByTestId("ExecuteButton")
         .should("be.enabled")

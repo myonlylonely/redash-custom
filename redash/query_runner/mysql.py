@@ -3,11 +3,11 @@ import os
 import threading
 
 from redash.query_runner import (
+    TYPE_DATE,
+    TYPE_DATETIME,
     TYPE_FLOAT,
     TYPE_INTEGER,
-    TYPE_DATETIME,
     TYPE_STRING,
-    TYPE_DATE,
     BaseSQLQueryRunner,
     InterruptException,
     JobTimeoutException,
@@ -48,15 +48,19 @@ types_map = {
 # need mysqlclient>=1.4.0 to support non-ASCII field name with non-UTF-8 connection encoding
 # the custom encoding patch is tested under mysqlclient==2.1.1, memsql==3.2.0
 # (also need to update memsql as memsql require _mysql)
+
+
 def _column_decoder(input, encode, decode):
     if decode != "" and isinstance(input, str):
-        return input.encode(encode, 'ignore').decode(decode, 'ignore')
+        return input.encode(encode, "ignore").decode(decode, "ignore")
     return input
+
 
 def _sql_encoder(input, encode, decode):
     if isinstance(input, str):
-        return input.encode(encode, 'ignore').decode(decode, 'ignore')
+        return input.encode(encode, "ignore").decode(decode, "ignore")
     return input
+
 
 class Result(object):
     def __init__(self):
@@ -68,9 +72,7 @@ class Mysql(BaseSQLQueryRunner):
 
     @classmethod
     def configuration_schema(cls):
-        show_ssl_settings = parse_boolean(
-            os.environ.get("MYSQL_SHOW_SSL_SETTINGS", "true")
-        )
+        show_ssl_settings = parse_boolean(os.environ.get("MYSQL_SHOW_SSL_SETTINGS", "true"))
 
         schema = {
             "type": "object",
@@ -140,11 +142,19 @@ class Mysql(BaseSQLQueryRunner):
         encoding_for_ui = self.configuration.get("encoding", "")
         if encoding_for_ui != "":
             _conv = conversions.copy()
-            def _string_decoder(s):
-                return s.decode(encoding_for_ui, 'ignore')
 
-            for t in (FIELD_TYPE.STRING, FIELD_TYPE.VAR_STRING, FIELD_TYPE.VARCHAR, FIELD_TYPE.TINY_BLOB,
-            FIELD_TYPE.MEDIUM_BLOB, FIELD_TYPE.LONG_BLOB, FIELD_TYPE.BLOB):
+            def _string_decoder(s):
+                return s.decode(encoding_for_ui, "ignore")
+
+            for t in (
+                FIELD_TYPE.STRING,
+                FIELD_TYPE.VAR_STRING,
+                FIELD_TYPE.VARCHAR,
+                FIELD_TYPE.TINY_BLOB,
+                FIELD_TYPE.MEDIUM_BLOB,
+                FIELD_TYPE.LONG_BLOB,
+                FIELD_TYPE.BLOB,
+            ):
                 _conv[t] = [(FLAG.BINARY, bytes), (None, _string_decoder)]
 
             params["conv"] = _conv
@@ -182,7 +192,6 @@ class Mysql(BaseSQLQueryRunner):
 
         return list(schema.values())
 
-
     def run_query(self, query, user):
         ev = threading.Event()
         thread_id = ""
@@ -192,9 +201,7 @@ class Mysql(BaseSQLQueryRunner):
         try:
             connection = self._connection()
             thread_id = connection.thread_id()
-            t = threading.Thread(
-                target=self._run_query, args=(query, user, connection, r, ev)
-            )
+            t = threading.Thread(target=self._run_query, args=(query, user, connection, r, ev))
             t.start()
             while not ev.wait(1):
                 pass
@@ -228,12 +235,12 @@ class Mysql(BaseSQLQueryRunner):
             # TODO - very similar to pg.py
             if desc is not None:
                 columns = self.fetch_columns(
-                    [(_column_decoder(i[0], connection.encoding, encoding_for_ui), types_map.get(i[1], None)) for i in desc]
+                    [
+                        (_column_decoder(i[0], connection.encoding, encoding_for_ui), types_map.get(i[1], None))
+                        for i in desc
+                    ]
                 )
-                rows = [
-                    dict(zip((column["name"] for column in columns), row))
-                    for row in data
-                ]
+                rows = [dict(zip((column["name"] for column in columns), row)) for row in data]
 
                 data = {"columns": columns, "rows": rows}
                 r.json_data = json_dumps(data)
@@ -318,9 +325,7 @@ class RDSMySQL(Mysql):
 
     def _get_ssl_parameters(self):
         if self.configuration.get("use_ssl"):
-            ca_path = os.path.join(
-                os.path.dirname(__file__), "./files/rds-combined-ca-bundle.pem"
-            )
+            ca_path = os.path.join(os.path.dirname(__file__), "./files/rds-combined-ca-bundle.pem")
             return {"ca": ca_path}
 
         return None
