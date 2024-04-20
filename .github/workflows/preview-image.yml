@@ -1,8 +1,12 @@
 name: Preview Image
 on:
-  push:
-    tags:
-      - '*-dev'
+  workflow_run:
+    workflows: 
+      - Tests
+    types:
+      - completed
+    branches:
+      - master
 
 env:
   NODE_VERSION: 18
@@ -71,8 +75,8 @@ jobs:
         with:
           push: true
           tags: |
-            redash/redash:preview
-            redash/preview:${{ steps.version.outputs.VERSION_TAG }}
+            myonlylonely/redash:preview
+            myonlylonely/redash:${{ steps.version.outputs.VERSION_TAG }}
           context: .
           build-args: |
             test_all_deps=true
